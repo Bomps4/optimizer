@@ -67,7 +67,7 @@ struct ExternalDataInfo {
                                 tensor->storage_field().cend());  \
     std::string raw_data;                                         \
     size_t raw_data_size = datas.size() * sizeof(cpp_type);       \
-    if (raw_data_size < size_threshold) {                         \
+    if (raw_data_size < (size_t)size_threshold) {                         \
       return;                                                     \
     }                                                             \
     raw_data.resize(raw_data_size);                               \
@@ -89,7 +89,7 @@ struct ExternalDataInfo {
       }
 #undef DO_CASE
     }
-    if (tensor->raw_data().size() < size_threshold) {
+    if (tensor->raw_data().size() < (size_t)size_threshold) {
       return;
     }
     tensor->set_data_location(TensorProto_DataLocation_EXTERNAL);

@@ -259,13 +259,13 @@ struct CSEEqual {
         outputs_l.size() != outputs_r.size() || attr_names_l != attr_names_r) {
       return false;
     }
-    for (int i = 0; i < inputs_l.size(); ++i) {
+    for (int i = 0; i < (int)inputs_l.size(); ++i) {
       if (inputs_l[i]->uniqueName() != inputs_r[i]->uniqueName()) {
         return false;
       }
     }
 
-    for (int i = 0; i < attr_names_l.size(); ++i) {
+    for (int i = 0; i < (int)attr_names_l.size(); ++i) {
       const auto attr_name = attr_names_l[i];
       if (lhs->kindOf(attr_name) != rhs->kindOf(attr_name)) {
         return false;

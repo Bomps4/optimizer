@@ -8,7 +8,7 @@
 #pragma once
 
 #include "onnxoptimizer/passes/bitscast.h"
-#include "onnxoptimizer/passes/logging.h"
+// #include "onnxoptimizer/passes/logging.h"
 
 namespace ONNX_NAMESPACE {
 namespace optimization {

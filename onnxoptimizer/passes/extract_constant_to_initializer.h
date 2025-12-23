@@ -32,9 +32,21 @@ struct ExtractConstantToInitializer final : public PredicateBasedPass {
   bool patternMatchPredicate(Node* node) override {
     return node->kind() == kConstant;
   }
+  bool isConstantInitializer(const onnx::Graph& graph,
+    const std::string& name)
+  {
+    for (const auto& init : graph.initializers()) {
+    if (init.name() == name)
+    return true;
+    }
+    return false;
+  }
 
   bool runTransform(Node* node, Graph& graph,
                     NodeDestroyType& destroy_current) override {
+   
+
+
     Tensor t = node->t(kvalue);
     Value* new_init;
     if (node->output()->has_unique_name() &&

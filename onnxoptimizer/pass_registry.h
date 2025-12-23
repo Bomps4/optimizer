@@ -59,6 +59,11 @@
 #include "onnxoptimizer/passes/fuse_consecutive_unsqueezes.h"
 #include "onnxoptimizer/passes/eliminate_nop_with_unit.h"
 #include "onnxoptimizer/passes/rewrite_input_dtype.h"
+#include "onnxoptimizer/passes/reshape_to_squeeze_unsqueeze.h"
+#include "onnxoptimizer/passes/fuse_squeeze_matmul_unsqueeze.h"
+#include "onnxoptimizer/passes/hoist_split.h"
+#include "onnxoptimizer/passes/Constant_folding.h"
+#include "onnxoptimizer/passes/fuseAttention.h"
 
 namespace ONNX_NAMESPACE {
 namespace optimization {
@@ -108,6 +113,7 @@ struct GlobalPassRegistry {
     registerPass<EliminateOpWithUnit>();
     registerPass<EliminateCommonSubexpression>();
     registerPass<FuseQKV>();
+    registerPass<ReplaceReshapeWithSqueezeUnsqueeze>();
     registerPass<FuseConsecutiveUnsqueezes>();
     registerPass<EliminateDeadEnd>();
     registerPass<EliminateIdentity>();
@@ -117,6 +123,10 @@ struct GlobalPassRegistry {
     registerPass<EliminateDuplicateInitializer>();
     registerPass<AdjustSliceAndMatmul>();
     registerPass<RewriteInputDtype>();
+    registerPass<LiftAddBeforeUnsqueeze>();
+    registerPass<HoistCommonPrefixThroughSplit>();
+    registerPass<OrtConstantFoldingSimple>();
+    registerPass<FuseAttention>();
   }
 
   ~GlobalPassRegistry() {

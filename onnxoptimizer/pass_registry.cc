@@ -12,7 +12,9 @@ namespace optimization {
 
 const std::vector<std::string> GlobalPassRegistry::GetFuseAndEliminationPass() {
   std::vector<std::string> names;
+
   for (const auto& name : this->pass_names) {
+
     const auto pass_type = this->passes.at(name)->getPassType();
     if (pass_type == PassType::Fuse || pass_type == PassType::Nop) {
       names.push_back(name);

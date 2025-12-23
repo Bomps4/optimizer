@@ -135,7 +135,7 @@ bool IsConstantTensor(const Node* n, const W& which_input,
   }
 }
 
-inline const Tensor* FetchConstantTensor(const Value* v) {
+inline const onnx::Tensor* FetchConstantTensor(const Value* v) {
   const uint32_t kind = v->node()->kind();
   auto* graph = v->owningGraph();
   if (kind == kConstant) {

@@ -14,7 +14,20 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(cmake/utils.cmake)
 
-# For integration with onnxruntime_webassembly etc.
+
+# --- Prebuilt ONNX Runtime ---
+set(ORT_ROOT "${PROJECT_SOURCE_DIR}/third_party/onnxruntime_prebuild")
+
+  set(ORT_LIB "${ORT_ROOT}/lib/libonnxruntime.so")
+  
+
+add_library(onnxruntime SHARED IMPORTED GLOBAL)
+set_target_properties(onnxruntime PROPERTIES
+  IMPORTED_LOCATION "${ORT_LIB}"
+  INTERFACE_INCLUDE_DIRECTORIES "${ORT_ROOT}/include"
+)
+
+# For integration with onnxruntime_webacssembly etc.
 if (NOT DEFINED ONNX_TARGET_NAME)
   set(ONNX_TARGET_NAME onnx)
 endif()
@@ -41,7 +54,7 @@ file(GLOB onnx_opt_srcs "onnxoptimizer/*.cc"
 list(REMOVE_ITEM onnx_opt_srcs "${PROJECT_SOURCE_DIR}/onnxoptimizer/cpp2py_export.cc")
 
 onnxopt_add_library(onnx_optimizer ${onnx_opt_srcs})
-target_link_libraries(onnx_optimizer PUBLIC ${ONNX_TARGET_NAME})
+target_link_libraries(onnx_optimizer PUBLIC ${ONNX_TARGET_NAME} onnxruntime)
 target_include_directories(onnx_optimizer PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>

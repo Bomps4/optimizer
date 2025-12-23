@@ -71,7 +71,7 @@ struct AdjustSliceAndMatmul final : public PredicateBasedPass {
 
     Node* new_slice = graph.create(kSlice, 1);
     new_slice->addInput(new_matmul->output());
-    for (int i = 1; i < slice->inputs().size(); ++i) {
+    for (int i = 1; i < (int)slice->inputs().size(); ++i) {
       new_slice->addInput(slice->inputs()[i]);
     }
 
