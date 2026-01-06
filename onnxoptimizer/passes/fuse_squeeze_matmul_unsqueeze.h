@@ -216,7 +216,7 @@ namespace optimization {
 
 struct LiftAddBeforeUnsqueeze final : public PredicateBasedPass {
   explicit LiftAddBeforeUnsqueeze()
-      : PredicateBasedPass(PassType::Fuse, PassEfficiency::Partial,
+      : PredicateBasedPass(PassType::Other, PassEfficiency::Partial,
                            PassOptimizationType::Compute) {}
 
   std::string getPassName() const override {

@@ -398,7 +398,7 @@ return true;
 
 struct FuseAttention final : public PredicateBasedPass {
   explicit FuseAttention()
-      : PredicateBasedPass(PassType::Fuse, PassEfficiency::Complete, PassOptimizationType::Compute) {}
+      : PredicateBasedPass(PassType::Replace, PassEfficiency::Complete, PassOptimizationType::Compute) {}
 
   std::string getPassName() const override { return "fuse_attention"; }
 
@@ -529,10 +529,14 @@ struct FuseAttention final : public PredicateBasedPass {
     }
 
     // Set optional "scale" attribute using the API available in your build
+    static const ONNX_NAMESPACE::Symbol kScale = ONNX_NAMESPACE::Symbol("scale");
     if (scale_attr) {
-      static const ONNX_NAMESPACE::Symbol kScale = ONNX_NAMESPACE::Symbol("scale");
-      setFloatAttr(attn, kScale, *scale_attr);
+      float real_scale = (1.0f/(*scale_attr)*(*scale_attr))*(1.0f/(*scale_attr)*(*scale_attr));
+      setFloatAttr(attn, kScale, real_scale);
     }
+    else
+      setFloatAttr(attn, kScale, 1.0f);
+
 
 
     const auto q_heads_dim = Q->sizes()[1];

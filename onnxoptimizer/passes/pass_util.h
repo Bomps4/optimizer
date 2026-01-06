@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <type_traits>
 
+#include <optional>
 #include "onnx/onnx_pb.h"
 #include "onnxoptimizer/pass.h"
 #include "onnxoptimizer/passes/logging.h"
@@ -20,6 +21,10 @@ namespace ONNX_NAMESPACE {
 namespace optimization {
 
 namespace {
+
+
+
+
 template <typename T>
 struct CanonicalizeSymbolType {
   using type = const T&;
@@ -107,6 +112,7 @@ bool CheckKind(const NodeOrValue* nv, const Sym& symbol) {
   return false;
 }
 
+
 template <typename Sym1, typename Which, typename Sym2, typename... Args>
 bool CheckKind(const Node* n, const Sym1& s1, const Which& which,
                const Sym2& s2, const Args&... args) {
@@ -118,6 +124,48 @@ template <typename T1, typename T2>
 T1 AddYIfNegative(T1 x, T2 y) {
   return x < 0 ? x + y : x;
 }
+
+
+  inline bool HasPayload(const onnx::Tensor& t,int &type) {
+   if (t.is_raw_data() && !(t.raw().empty())) {
+    type = 0;
+    return true;
+  }
+
+  // Typed storages
+  if (!t.floats().empty())   { type = 1; return true; }
+  if (!t.doubles().empty())  { type = 2; return true; }
+  if (!t.int32s().empty())   { type = 3; return true; }
+  if (!t.int64s().empty())   { type = 4; return true; }
+  if (!t.uint64s().empty())  { type = 5; return true; }
+  if (!t.strings().empty())  { type = 6; return true; }
+  
+  type = -1;
+  return false;
+  }
+
+  inline int64_t Numel(const onnx::Tensor& t) {
+  int64_t n = 1;
+  for (auto d : t.sizes()) n *= d;
+  return n;
+  }
+
+inline const onnx::Tensor* FetchConstantTensor(const Value* v) { 
+  const uint32_t kind = v->node()->kind(); 
+  auto* graph = v->owningGraph(); 
+
+  if (kind == kConstant) { return &v->node()->t(kvalue); }
+
+   else if (graph->is_constant_initializer(v)) 
+
+   { return &*graph->getInitializer(v->uniqueName()); } 
+
+   else { return nullptr; }
+
+  }
+
+
+
 
 inline bool IsConstantTensor(const Value* v) {
   auto* graph = v->owningGraph();
@@ -135,17 +183,7 @@ bool IsConstantTensor(const Node* n, const W& which_input,
   }
 }
 
-inline const onnx::Tensor* FetchConstantTensor(const Value* v) {
-  const uint32_t kind = v->node()->kind();
-  auto* graph = v->owningGraph();
-  if (kind == kConstant) {
-    return &v->node()->t(kvalue);
-  } else if (graph->is_constant_initializer(v)) {
-    return &*graph->getInitializer(v->uniqueName());
-  } else {
-    return nullptr;
-  }
-}
+
 
 template <typename T, typename Sym,
           typename = std::enable_if_t<SupportedTypeOfAttr<T>::value>>

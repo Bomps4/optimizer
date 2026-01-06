@@ -65,7 +65,7 @@ static size_t OnnxDTypeSize(int dtype) {
 
 struct OrtConstantFoldingSimple final : public FullGraphBasedPass {
   explicit OrtConstantFoldingSimple()
-      : FullGraphBasedPass(PassType::Fuse,
+      : FullGraphBasedPass(PassType::Replace,
                            PassEfficiency::Partial,
                            PassOptimizationType::Compute) {}
 
@@ -115,26 +115,80 @@ private:
   }
 
   static onnx::TensorProto OnnxTensorToTensorProto(const onnx::Tensor& t,
-                                      const std::string& name) {
+                                                const std::string& name) {
+  using DT = onnx::TensorProto_DataType;
+
   onnx::TensorProto tp;
   tp.set_name(name);
 
   const int dtype = static_cast<int>(t.elem_type());
   tp.set_data_type(dtype);
 
-  if (dtype == onnx::TensorProto_DataType_STRING) {
-    throw std::runtime_error("STRING tensors must be written via string_data, not raw_data");
-  }
-
   for (auto d : t.sizes()) {
     tp.add_dims(static_cast<int64_t>(d));
   }
 
-  // raw() already contains the byte payload as a std::string.
-  // Copy it into the proto (or move if you can relinquish ownership).
-  tp.set_raw_data(t.raw());   // copies
+  // STRING must use string_data, never raw_data
+  if (dtype == DT::TensorProto_DataType_STRING) {
+    for (const auto& s : t.strings()) {
+      tp.add_string_data(s);
+    }
+    return tp;
+  }
 
-  return tp;
+  // If tensor already stores raw bytes, use them directly.
+  if (t.is_raw_data()) {
+    tp.set_raw_data(t.raw()); // copies bytes
+    return tp;
+  }
+
+  // Otherwise, pack from the typed storage into raw_data.
+  // (This avoids writing float_data/int64_data fields and matches common ONNX practice.)
+  std::string bytes;
+  bytes.reserve(static_cast<size_t>(t.elem_num()) * 8); // conservative; refined below
+
+  auto append_bytes = [&](const auto* ptr, size_t count, size_t elem_size) {
+    const char* cptr = reinterpret_cast<const char*>(ptr);
+    bytes.append(cptr, cptr + count * elem_size);
+  };
+
+  switch (static_cast<DT>(dtype)) {
+    case DT::TensorProto_DataType_FLOAT: {
+      bytes.clear();
+      bytes.reserve(static_cast<size_t>(t.floats().size()) * sizeof(float));
+      append_bytes(t.floats().data(), t.floats().size(), sizeof(float));
+      break;
+    }
+    case DT::TensorProto_DataType_DOUBLE: {
+      bytes.clear();
+      bytes.reserve(static_cast<size_t>(t.doubles().size()) * sizeof(double));
+      append_bytes(t.doubles().data(), t.doubles().size(), sizeof(double));
+      break;
+    }
+    case DT::TensorProto_DataType_INT32: {
+      bytes.clear();
+      bytes.reserve(static_cast<size_t>(t.int32s().size()) * sizeof(int32_t));
+      append_bytes(t.int32s().data(), t.int32s().size(), sizeof(int32_t));
+      break;
+    }
+    case DT::TensorProto_DataType_INT64: {
+      bytes.clear();
+      bytes.reserve(static_cast<size_t>(t.int64s().size()) * sizeof(int64_t));
+      append_bytes(t.int64s().data(), t.int64s().size(), sizeof(int64_t));
+      break;
+    }
+    case DT::TensorProto_DataType_UINT64: {
+      bytes.clear();
+      bytes.reserve(static_cast<size_t>(t.uint64s().size()) * sizeof(uint64_t));
+      append_bytes(t.uint64s().data(), t.uint64s().size(), sizeof(uint64_t));
+      break;
+    }
+    default:
+      throw std::runtime_error("Unsupported elem_type for Tensor -> TensorProto raw_data packing");
+  }
+
+    tp.set_raw_data(std::move(bytes));
+    return tp;
   }
 
 
@@ -153,8 +207,61 @@ private:
     return true;
   }
 
+
+
   static bool addInputAsInitializer(onnx::GraphProto* g, Value* v) {
+
+    // std::cout<<"sono nel nodo dentro "<<v->node()->kind().toString()<<std::endl;
+
     const Tensor* t = FetchConstantTensor(v);
+    
+    
+
+    // std::cout<<"fammi indovinare se il tensor è un payload "<<t->elem_num() <<std::endl;
+
+
+    int type;
+
+    // std::cout<<" il tensor è un payload "<<HasPayload(*t,type) <<std::endl;
+
+    // std::cout<<"tensor name "<<t->name()<<std::endl;
+
+    // std::cout<<"payload data type "<<type<<std::endl;
+
+    // std::cout<<"element type "<<t->elem_type()<<std::endl;
+
+    // std::cout<<"raw data "<<t->raw()<<std::endl;
+
+    // std::cout<<"first user name "<<(v->node()->output())->uniqueName()<<std::endl;
+
+    //issue the tensor may be considered initialized but not having anything inside (no payload) i have seen it only for shape (as it is an operation that is fundamentally dinamic but that is very often already known at compile time) 
+    if (!HasPayload(*t,type)){
+
+      const Node* n = v->node();
+      if (n->kind() != Symbol("Shape")) return false;
+
+      const Value* x = n->input(0);
+
+      if (!(x->has_sizes())) return false;
+
+      onnx::Tensor separatet;
+
+
+      for (auto i : x->sizes()) {
+        if(i.is_int)
+          separatet.int64s().push_back(i.dim);
+        else
+          return false;
+      
+        }
+
+      separatet.sizes() = {int64_t(separatet.int64s().size())};
+
+      onnx::TensorProto* tp = g->add_initializer();
+      *tp = OnnxTensorToTensorProto(separatet,v->uniqueName());
+      return true;
+    }
+
     if (t) {
       onnx::TensorProto* tp = g->add_initializer();
       *tp = OnnxTensorToTensorProto(*t,v->uniqueName());
@@ -233,6 +340,7 @@ private:
 
     // Add initializers for all inputs (they are constant by construction).
     for (Value* in : node->inputs()) {
+
         if (!addInputAsInitializer(g, in)) return false;
     }
 
