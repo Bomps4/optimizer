@@ -200,15 +200,12 @@ inline std::optional<float> tryExtractScaleFromScoresProducer(ONNX_NAMESPACE::Va
   // A) Mul(qk, s) or Mul(s, qk)
   if (n->kind() == ONNX_NAMESPACE::kMul && n->inputs().size() == 2) {
 
-    //std::cout<<"Mul "<<std::endl;
     float s = 0.0f;
     if (isConstFloatScalar(n->inputs()[0], s)) {
-      //std::cout<<"first "<<std::endl;
       scores_in_out = n->inputs()[1];
       return s;
     }
     if (isConstFloatScalar(n->inputs()[1], s)) {
-      //std::cout<<"second "<<std::endl;
       scores_in_out = n->inputs()[0];
       return s;
     }
@@ -254,17 +251,17 @@ inline std::optional<float> tryExtractPreScaleFromQKMatMul(ONNX_NAMESPACE::Node*
   const bool k_is_mul = (k_mul && k_mul->kind() == ONNX_NAMESPACE::kMul && k_mul->inputs().size() == 2);
 
   if (q_is_mul && k_is_mul) {
-    float cq = 0.0f, ck = 0.0f;
+    float cq = 1.0f, ck = 1.0f;
 
     const bool q_c0 = isConstFloatScalar(q_mul->inputs()[0], cq);
     const bool q_c1 = isConstFloatScalar(q_mul->inputs()[1], cq);
     const bool k_c0 = isConstFloatScalar(k_mul->inputs()[0], ck);
     const bool k_c1 = isConstFloatScalar(k_mul->inputs()[1], ck);
 
-    if ((q_c0 || q_c1) && (k_c0 || k_c1) && cq == ck) {
+    if ((q_c0 || q_c1) && (k_c0 || k_c1)) {
       Q = q_c0 ? q_mul->inputs()[1] : q_mul->inputs()[0];
       K = k_c0 ? k_mul->inputs()[1] : k_mul->inputs()[0];
-      return cq * cq;
+      return cq * ck;
     }
   }
 
@@ -407,8 +404,16 @@ struct FuseAttention final : public PredicateBasedPass {
     if (n->inputs().size() != 2) return false;
     if (n->outputs().size() != 1) return false;
 
+    
+
     auto* probs = n->inputs()[0];
-    if (!probs || !probs->node() || probs->node()->kind() != ONNX_NAMESPACE::kSoftmax) return false;
+    if (!probs || !probs->node() || probs->node()->kind() != ONNX_NAMESPACE::kSoftmax) {
+      probs = n->inputs()[1];
+      if (!probs || !probs->node() || probs->node()->kind() != ONNX_NAMESPACE::kSoftmax) {
+        return false;
+      }
+    }
+
     if (probs->node()->inputs().size() != 1) return false;
 
     return true;
@@ -531,7 +536,7 @@ struct FuseAttention final : public PredicateBasedPass {
     // Set optional "scale" attribute using the API available in your build
     static const ONNX_NAMESPACE::Symbol kScale = ONNX_NAMESPACE::Symbol("scale");
     if (scale_attr) {
-      float real_scale = (1.0f/(*scale_attr)*(*scale_attr))*(1.0f/(*scale_attr)*(*scale_attr));
+      float real_scale = *scale_attr;
       setFloatAttr(attn, kScale, real_scale);
     }
     else
